@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package image;
+
+option go_package = "cliente-servidor/proto";
+
+service ImageService {
+  rpc ConvertToGray (ImageRequest) returns (ImageReply);
+}
+
+message ImageRequest {
+  bytes image_data = 1;
+}
+
+message ImageReply {
+  bytes image_data = 1;
+}
