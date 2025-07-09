@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -33,31 +34,37 @@ func main() {
 	imageData, err := os.ReadFile("input.png")
 	failOnErr(err, "Failed to read input image")
 
+	// Cria/abre o arquivo de saída
+	outputFile, err := os.Create("rtt_resultados.txt")
+	failOnErr(err, "Failed to create output file")
+	defer outputFile.Close()
+
 	const totalRequests = 50
-	var totalRTT time.Duration
 
 	for i := 1; i <= totalRequests; i++ {
-		corrID := uuid.New().String()
-		start := time.Now()
+	corrID := uuid.New().String()
+	start := time.Now()
 
-		err = ch.Publish("", "image_queue", false, false, amqp.Publishing{
-			ContentType:   "application/octet-stream",
-			CorrelationId: corrID,
-			ReplyTo:       replyQueue.Name,
-			Body:          imageData,
-		})
-		failOnErr(err, "Failed to publish request")
+	err = ch.Publish("", "image_queue", false, false, amqp.Publishing{
+		ContentType:   "application/octet-stream",
+		CorrelationId: corrID,
+		ReplyTo:       replyQueue.Name,
+		Body:          imageData,
+	})
+	failOnErr(err, "Failed to publish request")
 
-		for d := range msgs {
-			if d.CorrelationId == corrID {
-				elapsed := time.Since(start)
-				totalRTT += elapsed
-				log.Printf("RTT RabbitMQ request %d: %v", i, elapsed)
-				break
+	for d := range msgs {
+		if d.CorrelationId == corrID {
+			elapsed := time.Since(start)
+			_, err := fmt.Fprintf(outputFile, "Requisição %d: %v\n", i, elapsed)
+			failOnErr(err, "Failed to write to file")
+
+			// Salva a imagem apenas na última iteração
+			if i == totalRequests {
+				err := os.WriteFile("output_rabbitmq.png", d.Body, 0644)
+				failOnErr(err, "Failed to save output image")
 			}
+			break
 		}
 	}
-
-	avgRTT := totalRTT / totalRequests
-	log.Printf("RTT médio RabbitMQ para %d requisições: %v", totalRequests, avgRTT)
-}
+}}

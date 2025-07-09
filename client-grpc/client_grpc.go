@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"log"
+	"fmt"
 	"os"
 	"time"
 
@@ -14,7 +14,7 @@ import (
 func main() {
 	conn, err := grpc.Dial("localhost:50051", grpc.WithInsecure())
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 	defer conn.Close()
 
@@ -22,31 +22,38 @@ func main() {
 
 	imageData, err := os.ReadFile("input.png")
 	if err != nil {
-		log.Fatal(err)
+		panic(err)
 	}
 
 	const requests = 50
-	var totalRTT time.Duration
+
+	// Cria o arquivo de saída
+	outputFile, err := os.Create("rtt_grpc.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer outputFile.Close()
 
 	for i := 1; i <= requests; i++ {
 		start := time.Now()
 		resp, err := client.ConvertToGray(context.Background(), &pb.ImageRequest{ImageData: imageData})
 		if err != nil {
-			log.Fatalf("Request %d failed: %v", i, err)
+			panic(err)
 		}
 		elapsed := time.Since(start)
-		totalRTT += elapsed
-		log.Printf("RTT gRPC request %d: %v", i, elapsed)
 
-		// Se quiser salvar só a última resposta, pode fazer aqui:
+		// Escreve no arquivo
+		_, err = fmt.Fprintf(outputFile, "Requisição %d: %v\n", i, elapsed)
+		if err != nil {
+			panic(err)
+		}
+
+		// Salva a última imagem
 		if i == requests {
 			err = os.WriteFile("output_grpc.png", resp.ImageData, 0644)
 			if err != nil {
-				log.Fatal(err)
+				panic(err)
 			}
 		}
 	}
-
-	avgRTT := totalRTT / requests
-	log.Printf("RTT médio gRPC para %d requisições: %v", requests, avgRTT)
 }
